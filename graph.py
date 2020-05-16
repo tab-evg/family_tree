@@ -6,9 +6,12 @@ from typing import Tuple, Any
 
 
 class DSU:
-    def __init__(self, unions: Tuple[Any] = None):
+    def __init__(self, unions: Iterable[Tuple[Any]] = None, items: Iterable[Any] = None):
         self._parents = dict()
         self._ranks = dict()
+        if items is not None:
+            for i in items:
+                self.get(i)
         if unions is not None:
             for u in unions:
                 self.union(*u)
@@ -124,6 +127,8 @@ class Graph:
         neighbours = self._vertexes.get(e[0], set())
         neighbours.add(e[1])
         self._vertexes[e[0]] = neighbours
+        if e[1] not in self._vertexes:
+            self._vertexes[e[1]] = set()
 
     def remove_edge(self, e):
         if e[0] in self._vertexes:
@@ -134,6 +139,12 @@ class Graph:
             if e[1] in self._vertexes[e[0]]:
                 self._vertexes[e[0]].remove(e[1])
                 self.add_edge((e[1], e[0]))
+
+    def is_vertex_in_graph(self, v) -> bool:
+        return v in self._vertexes
+
+    def is_edge_in_graph(self, e) -> bool:
+        return e[0] in self._vertexes and e[1] in self._vertexes[e[0]]
 
     def get_reversed(self):
         edges = []
@@ -257,15 +268,147 @@ def init_rank(g: Graph) -> Dict[Any, int]:
     return ranks
 
 
-def tight_tree(g: Graph, ranks: Dict[Any, int]) -> Set[Any]:
-    # !!!TODO DSF SPANNING TREE
+def spanning_tree_edges(g: Graph):
+    '''
+    Покрытие связного графа остовным деревом
+    :return: список ребер остовного дерева
+    '''
+    # создаем ненаправленный граф из направленного
+    gundir = g.get_reversed().concat(g)
+    dfs_res = gundir.dfs()
+    edges = set()
+    for e in dfs_res.tree_edges:
+        if g.is_edge_in_graph(e):
+            edges.add(e)
+        else:
+            edges.add((e[1], e[0]))
+    return edges
+
+
+def tight_tree(g: Graph, ranks: Dict[Any, int]) -> Graph:
     delta = 1
     dsu = DSU()
     for e in g.iter_edges():
         if ranks[e[1]] - ranks[e[0]] == delta:
             # tight edge
             dsu.union(*e)
-    return max(dsu.iter_unions(), key=lambda x: len(x))
+    max_tree_v = max(dsu.iter_unions(), key=lambda x: len(x))
+    tight_tree = Graph()
+    for v in max_tree_v:
+        for u in g.iter_neighbors(v):
+            if u in max_tree_v and ranks[u] - ranks[v] == delta:
+                tight_tree.add_edge((v, u))
+
+    return Graph(spanning_tree_edges(tight_tree))
+
+
+def slack(edge, delta, ranks):
+    return ranks[edge[1]] - ranks[edge[0]] - delta
+
+
+def get_weight(edge: Tuple[Any]) -> int:
+    return 1
+
+
+def init_cutvalues(tree: Graph, g: Graph):
+    res = dict()
+    tree_edges = set(tree.iter_edges())
+    for e in tree.iter_edges():
+        dsu = DSU(tree_edges - {e}, tree.iter_vertices())
+        # print(f'{e}: {[x for x in dsu.iter_unions()]}')
+        tail_comp = dsu.get(e[0])
+        head_comp = dsu.get(e[1])
+        cut = 0
+        for cur_e in g.iter_edges():
+            tail = dsu.get(cur_e[0])
+            head = dsu.get(cur_e[1])
+            if tail == tail_comp and head == head_comp:
+                cut += get_weight(cur_e)
+            elif tail == head_comp and head == tail_comp:
+                cut -= get_weight(cur_e)
+        res[e] = cut
+    return res
+
+
+def feasible_tree(g: Graph) -> Dict[Any, int]:
+    delta = 1
+    ranks = init_rank(g)
+    print(f'init ranks={ranks}')
+    tree = tight_tree(g, ranks)
+    min_slack_edge = None
+    while tree.vertex_count() < g.vertex_count():
+        print(tree)
+        for v in g.iter_vertices():
+            for u in g.iter_neighbors(v):
+                if tree.is_vertex_in_graph(u) != tree.is_vertex_in_graph(v):
+                    if min_slack_edge is None or slack((v, u), delta, ranks) < slack(min_slack_edge, delta, ranks):
+                        min_slack_edge = (v, u)
+
+        d = slack(min_slack_edge, delta, ranks)
+        if g.is_vertex_in_graph(min_slack_edge[1]):
+            d = -d
+        for v in tree.iter_vertices():
+            ranks[v] += d
+        print(f'ranks={ranks}')
+        tree = tight_tree(g, ranks)
+    print(f'tree={tree}')
+    cutvals = init_cutvalues(tree, g)
+    return tree, cutvals, ranks
+
+
+def find_key_by_val(d, func):
+    for k, v in d.items():
+        if func(v):
+            return k
+
+
+def enter_edge(tree: Graph, g: Graph, edge: Tuple[Any], ranks: Dict[Any, int]) -> Tuple[Any]:
+    delta = 1
+    res = None
+    res_sl = None
+    tree_edges = set(tree.iter_edges())
+    dsu = DSU(tree_edges - {edge}, tree.iter_vertices())
+    tail_comp = dsu.get(edge[0])
+    head_comp = dsu.get(edge[1])
+
+    for cur_e in g.iter_edges():
+        tail = dsu.get(cur_e[0])
+        head = dsu.get(cur_e[1])
+        if tail == head_comp and head == tail_comp:
+            sl = slack(cur_e, delta, ranks)
+            if res is None or sl < res_sl:
+                res = cur_e
+                res_sl = sl
+    return res
+
+
+def calculate_rank(g: Graph):
+    feas_tree, cutvalues, ranks = feasible_tree(g)
+    print(f'feasible_tree={feas_tree}')
+    print(f'cutvalues={cutvalues}')
+    print(f'feas ranks={ranks}')
+    while True:
+        e = find_key_by_val(cutvalues, lambda x: x < 0)
+        if e is None:
+            break
+        f = enter_edge(feas_tree, g, e, ranks)
+        feas_tree.remove_edge(e)
+        feas_tree.add_edge(f)
+        print(f'feas={feas_tree}')
+        cutvalues = init_cutvalues(feas_tree, g)
+
+    rmin = min(ranks.values())
+    ranks = {v: (r - rmin) for v, r in ranks.items()}
+    return ranks
+
+
+def ordering(g: Graph, ranks: Dict[Any, int]):
+    best_order = dict()
+    for v, r in ranks.items():
+        l = best_order.get(r, list())
+        l.append(v)
+        best_order[r] = l
+    return best_order
 
 
 if __name__ == '__main__':
@@ -283,10 +426,11 @@ if __name__ == '__main__':
     # print(str(gt.dfs()))
     # print(str(gt.get_reversed().dfs()))
     gt = Graph(
-        [('a', 'b'), ('b', 'c'), ('c', 'd'), ('d', 'h'), ('a', 'f'), ('f', 'g'), ('g', 'h'), ('a', 'e'), ('e', 'g')])
+        [('a', 'b'), ('b', 'c'), ('c', 'd'), ('d', 'h'), ('a', 'f'), ('f', 'g'), ('g', 'h'), ('a', 'e'),
+         ('e', 'g')])
     make_acyclic(gt)
     print(f'acyclic={gt}')
-    ranks = init_rank(gt)
+    ranks = calculate_rank(gt)
     print(f'ranks={ranks}')
-    tree = tight_tree(gt, ranks)
-    print(tree)
+    order = ordering(gt, ranks)
+    print(f'order={order}')
