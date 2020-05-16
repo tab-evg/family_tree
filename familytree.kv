@@ -1,0 +1,118 @@
+#:kivy 1.0.9
+#:import FamilyTreeGraph genealogy.FamilyTreeGraph
+#:import Person genealogy.Person
+#:import Person genealogy.Family
+#:import utils kivy.utils
+
+#:set male_high utils.get_color_from_hex('#3388DE')
+#:set male_low utils.get_color_from_hex('#3859B3')
+
+
+#:set fam_high utils.get_color_from_hex('#E8D282')
+#:set fam_low utils.get_color_from_hex('#CE9248')
+
+
+<Person>:
+    size_hint: None, None
+    size: self.minimum_size
+    orientation: "vertical"
+    padding: 5, 5, 5, 5
+    spacing: 1
+    canvas:
+        Color:
+            rgba: male_low
+        RoundedRectangle:
+            pos: self.pos
+            size: self.size
+        Color:
+            rgba: male_high
+        Line:
+            rounded_rectangle: [*self.pos, *self.size, 10]
+            width: 1.2
+    Label:
+        size_hint: None, None
+        size: self.texture_size
+        id: btn
+        text: root.name
+        halign: 'left'
+    Label:
+        size_hint: None, None
+        size: self.texture_size
+        text: root.sex
+        halign: 'left'
+
+<Family>:
+    size_hint: None, None
+    size: self.minimum_size
+    orientation: "vertical"
+    padding: 5, 5, 5, 5
+    spacing: 1
+    canvas:
+        Color:
+            rgba: fam_low
+        RoundedRectangle:
+            pos: self.pos
+            size: self.size
+        Color:
+            rgba: fam_high
+        Line:
+            rounded_rectangle: [*self.pos, *self.size, 10]
+            width: 1.2
+    Label:
+        size_hint: None, None
+        size: self.texture_size
+        id: btn
+        text: 'Family'
+        halign: 'left'
+
+<LoadDialog>:
+    BoxLayout:
+        size: root.size
+        pos: root.pos
+        orientation: "vertical"
+        FileChooserListView:
+            id: filechooser
+            path: root.path
+
+        BoxLayout:
+            size_hint_y: None
+            height: 30
+            Button:
+                text: "Cancel"
+                on_release: root.cancel()
+
+            Button:
+                text: "Load"
+                on_release: root.load(filechooser.path, filechooser.selection)
+
+
+<FamilyTree>:
+    orientation: "vertical"
+    padding: 10
+    size_hint_x: 1
+    BoxLayout:
+        size_hint_y: 0.05
+        orientation: 'horizontal'
+        Button:
+            id: btn_open_file
+            text: "Open"
+            on_press: app.open_file()
+
+    FamilyTreeGraph:
+        id: family_tree
+        size_hint_y: 0.9
+
+    Button:
+        size_hint_y: 0.05
+        text: 'test'
+        on_press: root.test()
+
+
+
+
+
+
+
+
+
+

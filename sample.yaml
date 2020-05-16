@@ -1,0 +1,26 @@
+HEAD:
+  DATE: 30 NOV 2000
+  CHAR: ANSEL
+  SUBM: U1
+INDI:
+  I1:
+    NAME: John /Smith/
+    SEX: M
+    FAMS: F1
+  I2:
+    NAME: Elizabeth /Stansfield/
+    SEX: F
+    FAMS: F1
+  I3:
+    NAME: James /Smith/
+    SEX: M
+    FAMC: F1
+FAM:
+  F1:
+    HUSB: I1
+    WIFE: I2
+    MARR:
+    CHIL: I3
+SUBM:
+  S1:
+    NAME: Submitter
