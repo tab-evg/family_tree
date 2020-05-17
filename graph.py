@@ -1,5 +1,7 @@
+from _ast import List
 from collections import deque
-from copy import deepcopy
+from copy import deepcopy, copy
+from math import copysign
 from platform import version
 from typing import Iterable, Dict, Set
 from typing import Tuple, Any
@@ -92,21 +94,13 @@ class Graph:
                     self._vertexes[e[1]] = set()
 
     def __copy__(self):
-        cls = self.__class__
-        result = cls.__new__(cls)
-        result.__dict__.update(self.__dict__)
-        return result
-
-    def __deepcopy__(self, memo):
-        cls = self.__class__
-        result = cls.__new__(cls)
-        memo[id(self)] = result
-        for k, v in self.__dict__.items():
-            setattr(result, k, deepcopy(v, memo))
+        result = Graph()
+        for v, nb in self._vertexes.items():
+            result._vertexes[v] = copy(nb)
         return result
 
     def concat(self, other: 'Graph') -> 'Graph':
-        g = deepcopy(self)
+        g = copy(self)
         for v, neighbours in other._vertexes.items():
             this_neighbours = self._vertexes.get(v, set())
             this_neighbours.update(neighbours)
@@ -402,13 +396,85 @@ def calculate_rank(g: Graph):
     return ranks
 
 
-def ordering(g: Graph, ranks: Dict[Any, int]):
+class VirtualNode:
+    def __init__(self, edge, index):
+        self._edge = edge
+        self._index = index
+
+    def __repr__(self):
+        return f'[V{self._edge}: {self._index}]'
+
+    @property
+    def size(self) -> Tuple[int]:
+        return 10, 10
+
+
+class TestNode:
+    def __init__(self, text, size=(10, 10)):
+        self._text = text
+        self._size = size
+
+    def __repr__(self):
+        return f'{self._text}'
+
+    @property
+    def size(self) -> Tuple[int]:
+        return self._size
+
+
+def add_virtual_nodes(g: Graph, ranks: Dict[Any, int]):
+    long_edges = []
+    for e in g.iter_edges():
+        dr = ranks[e[1]] - ranks[e[0]]
+        if abs(dr) > 1:
+            long_edges.append((e, dr))
+
+    virt_nodes = []
+    for e, dr in long_edges:
+        vl = list()
+        prev = e[0]
+        for i in range(1, abs(dr)):
+            n = VirtualNode(e, i)
+            g.add_edge((prev, n))
+            vl.append(n)
+            ranks[n] = ranks[e[0]] + (i if dr > 0 else -i)
+            prev = n
+        g.add_edge((prev, e[1]))
+        virt_nodes.append(vl)
+    return virt_nodes
+
+
+def ordering(g: Graph, ranks: Dict[Any, int]) -> Dict:
     best_order = dict()
     for v, r in ranks.items():
         l = best_order.get(r, list())
         l.append(v)
         best_order[r] = l
     return best_order
+
+
+def xcoordinate(g: Graph, ranks: Dict[Any, int], order: Dict, nodesep=10) -> Dict:
+    ## init_xcoord()
+    xcoords = dict()
+
+    for nodes in order.values():
+        x = 0
+        for v in nodes:
+            xcoords[v] = x
+            x += v.size[0] + nodesep
+    return xcoords
+
+
+def ycoordinate(g: Graph, ranks: Dict[Any, int], order: Dict, ranksep=10) -> Dict:
+    ycoords = dict()
+    y = 0
+    for nodes in order.values():
+        max_height = 0
+        for v in nodes:
+            ycoords[v] = y
+            max_height = max(max_height, v.size[1])
+        y += max_height + ranksep
+    return ycoords
 
 
 if __name__ == '__main__':
@@ -425,12 +491,35 @@ if __name__ == '__main__':
     # gt.reverse_edge((4, 3))
     # print(str(gt.dfs()))
     # print(str(gt.get_reversed().dfs()))
+    ta = TestNode('a')
+    tb = TestNode('b')
+    tc = TestNode('c')
+    td = TestNode('d')
+    te = TestNode('e')
+    tf = TestNode('f')
+    tg = TestNode('g')
+    th = TestNode('h')
+
     gt = Graph(
-        [('a', 'b'), ('b', 'c'), ('c', 'd'), ('d', 'h'), ('a', 'f'), ('f', 'g'), ('g', 'h'), ('a', 'e'),
-         ('e', 'g')])
+        [(ta, tb),
+         (tb, tc),
+         (tc, td),
+         (td, th),
+         (ta, tf),
+         (tf, tg),
+         (tg, th),
+         (ta, te),
+         (te, tg)])
     make_acyclic(gt)
     print(f'acyclic={gt}')
     ranks = calculate_rank(gt)
     print(f'ranks={ranks}')
+    virtual_nodes = add_virtual_nodes(gt, ranks)
+    print(f'vgraph={gt}')
+    print(f'virtual_nodes={virtual_nodes}')
     order = ordering(gt, ranks)
     print(f'order={order}')
+    xcoord = xcoordinate(gt, ranks, order)
+    print(f'xcoord={xcoord}')
+    ycoord = ycoordinate(gt, ranks, order)
+    print(f'xcoord={ycoord}')
