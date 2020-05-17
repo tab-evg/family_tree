@@ -468,7 +468,7 @@ def xcoordinate(g: Graph, ranks: Dict[Any, int], order: Dict, nodesep=10) -> Dic
 def ycoordinate(g: Graph, ranks: Dict[Any, int], order: Dict, ranksep=10) -> Dict:
     ycoords = dict()
     y = 0
-    for nodes in order.values():
+    for _, nodes in sorted(order.items()):
         max_height = 0
         for v in nodes:
             ycoords[v] = y
